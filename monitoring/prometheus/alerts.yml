@@ -1,0 +1,44 @@
+groups:
+  - name: rag-platform
+    rules:
+      - alert: ApiDown
+        expr: up{job="rag-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RAG API is down"
+          description: "Prometheus cannot scrape the API for 2 minutes."
+
+      - alert: HighErrorRate
+        expr: >
+          sum(rate(rag_requests_total{outcome="error"}[5m]))
+          / clamp_min(sum(rate(rag_requests_total[5m])), 1e-9) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent error rate above 5%"
+          description: "Check LLM provider and Qdrant availability (API logs)."
+
+      - alert: SlowAgentP95
+        expr: >
+          histogram_quantile(0.95, sum(rate(rag_agent_seconds_bucket[10m])) by (le)) > 60
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent p95 latency above 60s"
+          description: "Grading loop or provider is slow — inspect LangSmith traces."
+
+      - alert: CostBudgetBurn
+        expr: sum(increase(rag_cost_dollars_total[1h])) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LLM spend above $1/hour budget"
+          description: "A change may have breached the cost budget (eval program stretch goal). Check rag_cost_dollars_total by model, and the latest matrix.md for cheaper frontier configs."
+
+      - alert: LowRetrievalScores
+   

@@ -1,0 +1,32 @@
+# Model × Strategy experiment matrix (Program Phases 7–9).
+# The right model is likely different per task — measure, don't assume.
+# Rows needing API keys/models you don't have are skipped with a warning.
+
+questions_limit: 8          # rows from the golden dataset per combo (keep sweeps cheap)
+
+models:
+  - label: llama3.1-8b-local
+    provider: ollama
+    model: "llama3.1:8b"
+    baseline: true          # uplift is measured against this row
+  - label: qwen2.5-7b-local
+    provider: ollama
+    model: "qwen2.5:7b"
+  - label: gpt-4o-mini
+    provider: openai
+    model: "gpt-4o-mini"
+  - label: claude-haiku-4-5
+    provider: anthropic
+    model: "claude-haiku-4-5"
+
+strategies:
+  - label: baseline          # grading on, 1 rewrite, top_k 4
+    params: {}
+  - label: no_grading        # cheapest loop — does quality hold?
+    params: { grading: false }
+  - label: rewrites_2
+    params: { max_rewrites: 2 }
+  - label: top_k_8           # wider retrieval
+    params: { top_k: 8 }
+  - label: top_k_2           # narrower, faster
+    params: { top_k: 2 }

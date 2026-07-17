@@ -1,0 +1,16 @@
+# Caddy: automatic HTTPS (Let's Encrypt) for DOMAIN, reverse proxy to services.
+# /metrics is intentionally NOT routed — it stays internal for Prometheus only.
+
+{$DOMAIN:localhost} {
+	encode gzip
+
+	@api path /api/* /docs /docs/* /openapi.json /health
+	handle @api {
+		reverse_proxy api:8000
+	}
+
+	# Everything else → Streamlit UI (websockets proxied automatically)
+	handle {
+		reverse_proxy ui:8501
+	}
+}

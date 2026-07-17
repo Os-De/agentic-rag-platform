@@ -1,0 +1,3 @@
+{"question": "What does the ingestion pipeline do with an uploaded file?", "ground_truth": "It extracts text, splits it into overlapping chunks, embeds each chunk, upserts the vectors into Qdrant, and registers the upload in PostgreSQL with a content hash and chunk count."}
+{"question": "What are the three user roles and what can each do?", "ground_truth": "Viewer can chat and read; engineer can additionally ingest documents; admin can additionally manage users."}
+{"question": "What happens when the agent finds no relevant chunks for a question?", "ground_truth": "It rewrites the query once and retries retrieval; if still nothing relevant is found, it answers honestly that it does not know instead of guessing."}

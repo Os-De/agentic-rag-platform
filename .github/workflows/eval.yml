@@ -1,0 +1,67 @@
+# Phase 6 quality gate — run on demand (Actions tab → RAG quality eval → Run).
+# Requires repo secret OPENAI_API_KEY (generation + RAGAS judge in CI, where
+# there is no local Ollama). Grow golden_dataset.jsonl before trusting scores.
+
+name: RAG quality eval
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1"   # weekly Monday 05:00 UTC — continuous eval cadence
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare env file (API provider = openai in CI)
+        run: |
+          cp .env.example .env
+          sed -i 's/^LLM_PROVIDER=.*/LLM_PROVIDER=openai/' .env
+          echo "OPENAI_API_KEY=${OPENAI_API_KEY}" >> .env
+
+      - name: Start core stack
+        run: docker compose up -d --build
+
+      - name: Wait for API health
+        run: |
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:8000/health && exit 0 || sleep 5
+          done
+          docker compose logs api; exit 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Ingest sample documents
+        run: |
+          pip install httpx
+          python scripts/ingest_samples.py
+
+      - name: Run RAGAS eval
+        run: |
+          pip install -r ml/evaluation/requirements-eval.txt
+          python ml/evaluation/ragas_eval.py --api http://localhost:8000
+
+      - name: Enforce thresholds
+        run: python ml/evaluation/check_thresholds.py
+
+      - name: Baseline scorecard (accuracy / cost / speed)
+        run: |
+          pip install -r evals/requirements-evals.txt
+          cd evals && python run_baseline.py --api http://localhost:8000
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: |
+            ml/evaluation/results.json
+            ml/evaluation/eval_summary.json
+            evals/baseline_scorecard.json
+            evals/baseline_scorecard.md

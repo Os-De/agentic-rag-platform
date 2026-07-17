@@ -1,0 +1,66 @@
+# CD (Phase 9): tag a release → build & push images to GitHub Container Registry.
+#   git tag v1.0.0 && git push --tags
+# Deploy job is opt-in: set repo variable DEPLOY_TARGET=azure and secret
+# AZURE_CREDENTIALS (see infra/azure.md), or adapt for GCP (infra/gcp.md).
+
+name: CD
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: services/api
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/rag-api:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/rag-api:latest
+
+      - name: Build & push UI image
+        uses: docker/build-push-action@v6
+        with:
+          context: ui
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/rag-ui:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/rag-ui:latest
+
+  deploy-azure:
+    needs: build-and-push
+    if: vars.DEPLOY_TARGET == 'azure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Update Container App to the new image
+        run: |
+          az containerapp update \
+            --name rag-api \
+            --resource-group rag-platform \
+            --image ghcr.io/${{ github.repository }}/rag-api:${{ github.ref_name }}
+
+      - name: Smoke test
+        run: |
+          URL=$(az containerapp show --name rag-api --resource-group rag-platform \
+                --query properties.configuration.ingress.fqdn -o tsv)
+          curl -fsS "https://${URL}/health"

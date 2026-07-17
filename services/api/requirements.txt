@@ -1,0 +1,35 @@
+# API
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.8
+pydantic-settings>=2.4
+email-validator>=2.1
+python-multipart>=0.0.9
+
+# Database
+sqlalchemy>=2.0
+psycopg[binary]>=3.2
+
+# Security
+bcrypt>=4.1
+pyjwt>=2.9
+slowapi>=0.1.9
+
+# Observability
+structlog>=24.1
+prometheus-client>=0.20
+prometheus-fastapi-instrumentator>=7.0
+
+# OpenTelemetry LLM tracing (ADR-011): OpenInference/Phoenix + OpenLLMetry/Traceloop
+opentelemetry-sdk>=1.25
+opentelemetry-exporter-otlp-proto-http>=1.25
+openinference-instrumentation-langchain>=0.1.29
+traceloop-sdk>=0.26
+
+# LangChain / LangGraph ecosystem
+langchain>=0.3
+langchain-core>=0.3
+langchain-community>=0.3
+langchain-text-splitters>=0.3
+langgraph>=0.2
+l

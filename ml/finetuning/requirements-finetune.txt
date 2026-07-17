@@ -1,0 +1,10 @@
+# GPU machine only (local consumer GPU via WSL2, or cloud GPU)
+torch>=2.3
+transformers>=4.43
+datasets>=2.20
+peft>=0.11
+trl>=0.9
+bitsandbytes>=0.43
+accelerate>=0.31
+mlflow>=2.14
+pyyaml>=6.0

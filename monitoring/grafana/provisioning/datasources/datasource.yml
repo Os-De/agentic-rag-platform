@@ -1,0 +1,12 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus          # referenced by the provisioned dashboard
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+# A ready dashboard is provisioned from ../dashboards/rag-platform.json —
+# extend it as you add metrics (Phase 5).

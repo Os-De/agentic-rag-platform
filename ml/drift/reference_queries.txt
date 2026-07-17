@@ -1,0 +1,17 @@
+# Reference query distribution — what the knowledge base SHOULD be asked about.
+# One query per line. Curate this from real, well-served user questions
+# (Phase 8 task) — these seeds match the sample documents.
+What does the ingestion pipeline do with an uploaded file?
+How are documents split into chunks?
+What is chunk overlap and why does it matter?
+Which vector database does the platform use?
+How does the agent decide a retrieved chunk is relevant?
+When does the agent rewrite a query?
+What happens when no relevant context is found?
+What are the three user roles?
+Who is allowed to ingest documents?
+How do I switch between local and API language models?
+Why do embeddings define the vector space?
+What does the drift detection job monitor?
+How is answer quality evaluated?
+What is the final phase of the project plan?

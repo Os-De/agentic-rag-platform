@@ -1,0 +1,14 @@
+# Ollama Modelfile for the fine-tuned model (Phase 7, final serving step).
+# Usage:
+#   1. cp Modelfile.template Modelfile   (edit the FROM path)
+#   2. ollama create domain-model -f Modelfile
+#   3. Call the platform with {"provider": "ollama", "model": "domain-model"}
+
+FROM ./domain.gguf
+
+PARAMETER temperature 0.1
+PARAMETER num_ctx 4096
+
+SYSTEM """You are a precise assistant for an enterprise knowledge base. Answer
+only from provided context, cite sources, and say you don't know when the
+context lacks the answer."""

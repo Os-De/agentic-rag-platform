@@ -1,0 +1,119 @@
+# Production single-VM topology (Phase 9): Caddy terminates TLS, everything else
+# stays on the internal network (no host ports except 80/443).
+#
+#   DOMAIN=rag.example.com POSTGRES_PASSWORD=... docker compose -f docker-compose.prod.yml up -d
+#
+# For managed-cloud deployment (Container Apps / Cloud Run + Qdrant Cloud) see infra/.
+
+services:
+  caddy:
+    image: caddy:2.8
+    container_name: rag-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - ui
+    restart: always
+
+  api:
+    build: ./services/api
+    container_name: rag-api
+    env_file: .env
+    environment:
+      ENVIRONMENT: prod
+      WEB_CONCURRENCY: "4"
+      CORS_ORIGINS: https://${DOMAIN:-localhost}
+      DATABASE_URL: postgresql+psycopg://rag:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/rag
+      QDRANT_URL: http://qdrant:6333
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - fastembed_cache:/home/appuser/.cache
+    expose:
+      - "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    restart: always
+
+  ui:
+    build: ./ui
+    container_name: rag-ui
+    environment:
+      API_BASE_URL: http://api:8000
+    expose:
+      - "8501"
+    depends_on:
+      - api
+    restart: always
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: rag-postgres
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: rag
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d rag"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.1
+    container_name: rag-qdrant
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: always
+
+  # Monitoring bound to localhost only — reach it via SSH tunnel:
+  #   ssh -L 3000:localhost:3000 user@server
+  prometheus:
+    image: prom/prometheus:v2.53.1
+    container_name: rag-prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prom_data:/prometheus
+    restart: always
+
+  grafana:
+    image: grafana/grafana:11.1.3
+    container_name: rag-grafana
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?set GRAFANA_PASSWORD}
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: always
+
+volumes:
+  pgdata:
+  qdrant_data:
+  prom_data:
+  grafana_data:
+  caddy_data:
+  caddy_config:
+  fastembed_cache:

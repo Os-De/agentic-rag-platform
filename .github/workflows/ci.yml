@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: services/api/requirements*.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r services/api/requirements.txt -r services/api/requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Unit tests
+        run: pytest services/api/tests -q
+
+      - name: Eval metric regression tests (Program Phase 12)
+        run: pytest evals/tests -q
+
+  # Phase 6: add an 'eval' job here 
