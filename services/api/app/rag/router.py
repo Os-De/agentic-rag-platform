@@ -109,4 +109,33 @@ def chat(
     tokens = result.get("tokens") or {"input": 0, "output": 0}
     cost = estimate_cost_usd(model_used, tokens["input"], tokens["output"])
     if tokens["input"] or tokens["output"]:
-        RAG_TOKENS.labels
+        RAG_TOKENS.labels(provider=provider, direction="input").inc(tokens["input"])
+        RAG_TOKENS.labels(provider=provider, direction="output").inc(tokens["output"])
+    if cost:
+        RAG_COST_DOLLARS.labels(provider=provider, model=model_used).inc(cost)
+    usage = UsageOut(
+        input_tokens=tokens["input"],
+        output_tokens=tokens["output"],
+        estimated_cost_usd=cost,
+        model=model_used,
+        priced=is_priced(model_used),
+    )
+
+    # Phase 8: log the query — this is the drift job's "current window".
+    try:
+        db.add(QueryLog(user_email=user.email, question=req.question[:4000]))
+        db.commit()
+    except Exception:
+        db.rollback()
+        log.warning("query log write failed")
+
+    # The rewrite flag: analyzer corrections count as 1, per honest-transparency rule.
+    rewrites = loop_rewrites + (1 if analysis and analysis.was_corrected else 0)
+    return ChatResponse(
+        answer=result.get("generation", ""),
+        rewrites=rewrites,
+        conversation_id=conversation_id,
+        analysis=analysis,
+        usage=usage,
+        sources=sources,
+    )

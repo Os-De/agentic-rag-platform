@@ -41,4 +41,12 @@ groups:
           description: "A change may have breached the cost budget (eval program stretch goal). Check rag_cost_dollars_total by model, and the latest matrix.md for cheaper frontier configs."
 
       - alert: LowRetrievalScores
-   
+        expr: >
+          sum(rate(rag_retrieval_top_score_sum[30m]))
+          / clamp_min(sum(rate(rag_retrieval_top_score_count[30m])), 1e-9) < 0.35
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "Average best retrieval score is low"
+          description: "Users may be asking about topics missing from the knowledge base (possible drift — see Phase 8 runbook)."

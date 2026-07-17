@@ -77,4 +77,10 @@ app.include_router(admin_router, prefix=settings.api_v1_prefix)
 app.include_router(ingestion_router, prefix=settings.api_v1_prefix)
 app.include_router(rag_router, prefix=settings.api_v1_prefix)
 
-# Prometheus metrics at /metrics (scraped by the
+# Prometheus metrics at /metrics (scraped by the monitoring profile).
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+
+
+@app.get("/health", tags=["ops"])
+def health() -> dict:
+    return {"status": "ok", "name": settings.app_name, "version": settings.version}

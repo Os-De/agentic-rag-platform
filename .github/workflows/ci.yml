@@ -30,4 +30,5 @@ jobs:
       - name: Eval metric regression tests (Program Phase 12)
         run: pytest evals/tests -q
 
-  # Phase 6: add an 'eval' job here 
+  # The full judge-based quality gate (RAGAS + baseline scorecard) runs in
+  # eval.yml — weekly cron + manual dispatch — because it needs live services.

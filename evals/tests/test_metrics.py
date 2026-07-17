@@ -46,7 +46,9 @@ def test_groundedness():
     contexts = ["The ingestion pipeline splits documents into overlapping chunks."]
     grounded = sentence_groundedness("The pipeline splits documents into chunks.", contexts)
     assert grounded == 1.0
-    ungrounded = sentence_groundedness("Elephants enjoy quantum snowboarding championships.", contexts)
+    ungrounded = sentence_groundedness(
+        "Elephants enjoy quantum snowboarding championships.", contexts
+    )
     assert ungrounded == 0.0
 
 

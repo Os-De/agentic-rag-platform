@@ -19,6 +19,8 @@ flowchart TB
         PROM[prometheus :9090\nprofile: monitoring]
         GRAF[grafana :3000\nprofile: monitoring]
         MLF[mlflow :5000\nprofile: mlops]
+        PHX[phoenix :6006\nprofile: tracing]
+        JAE[jaeger :16686\nprofile: tracing]
     end
     subgraph SaaS
         LS[LangSmith]
@@ -29,6 +31,7 @@ flowchart TB
     API --> OLLAMA
     API --> OAI
     API -.traces.-> LS
+    API -.OTel.-> PHX & JAE
     PROM --> API
     GRAF --> PROM
 ```
@@ -45,8 +48,9 @@ sequenceDiagram
     participant Q as Qdrant
     participant L as LLM (Ollama/OpenAI/Anthropic)
     C->>A: POST /chat {question, provider?} + JWT
-    A->>A: verify JWT, check role ≥ viewer
+    A->>A: verify JWT, check role ≥ viewer, rate limit
     A->>G: invoke(question)
+    G->>L: analyze query (spell/route/intent)
     G->>Q: retrieve top-k chunks
     G->>L: grade each chunk (relevant?)
     alt no relevant chunks & rewrites left
@@ -54,8 +58,8 @@ sequenceDiagram
         G->>Q: retrieve again
     end
     G->>L: generate grounded answer + citations
-    G-->>A: {answer, documents}
-    A-->>C: {answer, sources[]}
+    G-->>A: {answer, documents, tokens}
+    A-->>C: {answer, sources[], usage, analysis}
 ```
 
 ## 4. Agent graph (LangGraph)
@@ -77,7 +81,9 @@ flowchart LR
 CRAG-lite with pre-retrieval analysis (ADR-009): the analyzer fixes typos before
 they poison retrieval, routes small talk past the pipeline, and flags superlative
 phase questions for metadata-ranked retrieval. Conversation memory: a checkpointer
-keyed by `conversation_id` carries recent turns for follow-up questions.
+keyed by `conversation_id` carries recent turns for follow-up questions. Strategy
+knobs per request (`grading`, `max_rewrites`, `top_k`) power the eval program's
+model×strategy matrix.
 
 ## 5. Data model (PostgreSQL)
 
@@ -101,10 +107,10 @@ Vector payloads in Qdrant carry `source`, `doc_id`, `chunk_index`, and `phase_nu
 |---|---|---|---|
 | `/chat`, list documents | ✅ | ✅ | ✅ |
 | `/ingest` (write to vector DB) | ❌ | ✅ | ✅ |
-| register users, manage roles | ❌ | ❌ | ✅ |
+| register users, manage roles, audit log | ❌ | ❌ | ✅ |
 
 - Bootstrap: admin seeded from env on first startup; registration is admin-only after that.
-- Implemented hardening: per-IP rate limiting on `/token` and `/chat` (slowapi, env-tunable), audit log on every privileged action (`GET /api/v1/admin/audit`), account disable (`is_active`) that preserves history, self-demotion guard, upload size limit + extension allowlist, CORS from env, non-root container user.
+- Implemented hardening: per-IP rate limiting on `/token` and `/chat` (slowapi, env-tunable), audit log on every privileged action (`GET /api/v1/admin/audit`), account disable (`is_active`) that preserves history, self-demotion guard, self-service password change, upload size limit + extension allowlist, unknown-source 404 guard, CORS from env, non-root container user.
 - Remaining backlog: external IdP (OIDC), token refresh/revocation, Redis-backed global rate limits, deeper prompt-injection defenses (context/instruction separation is in place via prompt design).
 
 ## 7. Observability design
@@ -116,21 +122,22 @@ Vector payloads in Qdrant carry `source`, `doc_id`, `chunk_index`, and `phase_nu
 | Metrics | Prometheus (`/metrics`) → Grafana | Is the service healthy? RED: rate, errors, duration |
 | Logs | structlog (JSON in prod) | Forensics, correlation via request context |
 
-Implemented custom metrics (`core/metrics.py`): request counter per provider/outcome, agent latency histogram per provider, rewrite + correction counters, best-retrieval-score histogram (knowledge-base coverage signal). A Grafana dashboard is provisioned automatically; Prometheus alert rules cover API down, error rate > 5%, slow p95, and low retrieval scores (`monitoring/prometheus/alerts.yml`).
+Implemented custom metrics (`core/metrics.py`): request counter per provider/outcome, agent latency histogram per provider, per-node latency histograms, token + estimated-cost counters, rewrite + correction counters, best-retrieval-score histogram (knowledge-base coverage signal). A Grafana dashboard is provisioned automatically; Prometheus alert rules cover API down, error rate > 5%, slow p95, cost-budget burn, and low retrieval scores (`monitoring/prometheus/alerts.yml`).
 
 ## 8. MLOps loop
 
 ```
-ingest → serve (RAG) → collect traces/queries
+ingest → serve (RAG) → collect traces/queries/costs
    ↑                          ↓
 register ← fine-tune ← curate dataset (from real usage)
    ↓
-evaluate (RAGAS gate) → promote to serving (Ollama adapter)
+evaluate (RAGAS + evals/ gates) → promote to serving (Ollama adapter)
                              ↓
                  monitor drift → trigger re-curation
 ```
 
-MLflow tracks experiments and registers model versions; RAGAS scores gate promotion; drift jobs close the loop.
+MLflow tracks experiments and registers model versions; RAGAS scores and the
+`evals/` baseline/matrix/Pareto tooling gate promotion; drift jobs close the loop.
 
 ## 9. Deployment topology
 
@@ -143,4 +150,5 @@ MLflow tracks experiments and registers model versions; RAGAS scores gate promot
 
 - LangGraph over plain chains: explicit state machines are debuggable and extensible — worth the learning curve.
 - Qdrant over Milvus/pgvector: best dev-experience + built-in dashboard; pgvector would cut a service but caps scale features.
-- Per-chunk LLM grading adds laten
+- Per-chunk LLM grading adds latency/cost — accepted for quality and pedagogy; skippable per request (`grading:false`) and measured by the eval matrix.
+- Sync SQLAlchemy for simplicity at current load; async is a documented future migration.

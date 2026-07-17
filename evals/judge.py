@@ -30,7 +30,8 @@ JSON:"""
 QUALITY_RUBRIC = """\
 You are a strict evaluator. Score the ANSWER's overall quality for the QUESTION:
 correctness of focus, completeness, clarity, appropriate length.
-5 = excellent; 3 = acceptable; 1 = useless. Reply with ONLY JSON: {{"score": <1-5>, "reason": "<short>"}}
+5 = excellent; 3 = acceptable; 1 = useless.
+Reply with ONLY JSON: {{"score": <1-5>, "reason": "<short>"}}
 
 QUESTION: {question}
 ANSWER:
@@ -96,7 +97,7 @@ def judge(
 
 def calibrate(judge_scores: list[int], human_scores: list[int]) -> dict:
     """Agreement stats between judge and practitioner labels on the same rows."""
-    pairs = [(j, h) for j, h in zip(judge_scores, human_scores) if j > 0]
+    pairs = [(j, h) for j, h in zip(judge_scores, human_scores, strict=False) if j > 0]
     if not pairs:
         return {"n": 0, "usable": False}
     n = len(pairs)

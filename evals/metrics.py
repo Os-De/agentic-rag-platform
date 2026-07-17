@@ -15,7 +15,8 @@ def _norm(value) -> str:
 
 
 def _content_tokens(text: str) -> set[str]:
-    return {t.lower() for t in _WORD_RE.findall(text or "") if len(t) > 2 and t.lower() not in _STOP}
+    tokens = _WORD_RE.findall(text or "")
+    return {t.lower() for t in tokens if len(t) > 2 and t.lower() not in _STOP}
 
 
 # ── Extraction ───────────────────────────────────────────────────────────────
@@ -30,11 +31,12 @@ def extraction_scores(gold: dict, pred: dict) -> dict:
     def is_null(v) -> bool:
         return v is None or _norm(v) == ""
 
-    correct = sum(
-        1 for f in gold_fields
-        if not is_null(gold[f]) and not is_null(pred.get(f)) and _norm(gold[f]) == _norm(pred.get(f))
-        or is_null(gold[f]) and is_null(pred.get(f))
-    )
+    def matches(f: str) -> bool:
+        if is_null(gold[f]):
+            return is_null(pred.get(f))
+        return not is_null(pred.get(f)) and _norm(gold[f]) == _norm(pred.get(f))
+
+    correct = sum(1 for f in gold_fields if matches(f))
     gold_filled = [f for f in gold_fields if not is_null(gold[f])]
     completeness = (
         sum(1 for f in gold_filled if not is_null(pred.get(f))) / len(gold_filled)

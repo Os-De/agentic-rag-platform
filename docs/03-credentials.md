@@ -75,4 +75,8 @@ reach them via SSH tunnel.
 
 ## 7. PostgreSQL (internal, no dashboard)
 
-Dev credentials `rag / rag` live in `docker-compose.yml` (`POSTGRES_*`) and must match `DATABASE_URL`. The password is baked into the volume on first start — to change it later: `docker exec -it rag-postgres psql -U rag -c "ALTER USER rag WITH PASSWORD 'NewPass';"` then update `DATABASE_URL` everywhere and restart the API. Production reads
+Dev credentials `rag / rag` live in `docker-compose.yml` (`POSTGRES_*`) and must match `DATABASE_URL`. The password is baked into the volume on first start — to change it later: `docker exec -it rag-postgres psql -U rag -c "ALTER USER rag WITH PASSWORD 'NewPass';"` then update `DATABASE_URL` everywhere and restart the API. Production reads `POSTGRES_PASSWORD` from the shell environment.
+
+---
+
+**Rule of thumb:** dev defaults are fine on your laptop; before anything is reachable from the internet, every service above must have a changed password or be unexposed (the prod compose already unexposes Prometheus/Grafana/Qdrant/Postgres — only Caddy's 80/443 are public).
